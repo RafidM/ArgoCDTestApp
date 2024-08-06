@@ -6,18 +6,23 @@ EXPOSE 80
 EXPOSE 443
 
 
+
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["ArgoCDTestApp/ArgoCDTestApp.csproj", "ArgoCDTestApp/"]
-RUN dotnet restore "./ArgoCDTestApp/ArgoCDTestApp.csproj"
-COPY . .
+COPY ["./ArgoCDTestApp.csproj", "ArgoCDTestApp/"]
+RUN mkdir -p /src/nuget-packages
+RUN curl -o /src//nuget-packages/microsoft.visualstudio.azure.containers.tools.targets.1.20.1.nupkg -k https://globalcdn.nuget.org/packages/microsoft.visualstudio.azure.containers.tools.targets.1.20.1.nupkg
+ENV NUGET_SOURCE=nuget-packages
+RUN ls -l /src/nuget-packages
+RUN dotnet restore "./ArgoCDTestApp/ArgoCDTestApp.csproj" --source /src/nuget-packages
 WORKDIR "/src/ArgoCDTestApp"
-RUN dotnet build "./ArgoCDTestApp.csproj" -c $BUILD_CONFIGURATION -o /app/build
+COPY . .
+RUN dotnet build --source /src/nuget-packages  "../ArgoCDTestApp/ArgoCDTestApp.csproj" -c $BUILD_CONFIGURATION -o /app/build -r linux-x64
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./ArgoCDTestApp.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish --source /src/nuget-packages  "../ArgoCDTestApp/ArgoCDTestApp.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false 
 
 FROM base AS final
 WORKDIR /app
